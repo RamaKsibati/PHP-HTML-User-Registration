@@ -1,6 +1,5 @@
 <?php
 require 'db.php';
-
 $message = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -8,36 +7,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = $_POST['email'];
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
-    
-    // Basic validation checks
-    if (!preg_match("/^[a-zA-Z0-9]{4,}$/", $username)) {
-        $message = "Username must be at least 4 characters long and contain only alphanumeric characters.";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $message = "Invalid email format.";
-    } elseif (!preg_match("/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{10,}$/", $password)) {
-        $message = "Password must be at least 10 characters long, include an uppercase letter, a lowercase letter, and a number.";
-    } elseif ($password !== $confirm_password) {
-        $message = "Passwords do not match.";
-    } else {
-        $password_hash = password_hash($password, PASSWORD_BCRYPT);
+    $self_introduction = $_POST['self_introduction'];
 
-        // Image upload
-        $image_path = NULL;
-        if (!empty($_FILES['image']['name'])) {
-            $target_dir = "uploads/";
-            $image_path = $target_dir . basename($_FILES['image']['name']);
-            move_uploaded_file($_FILES['image']['tmp_name'], $image_path);
-        }
+    // Password confirmation and hashing
+    if ($password === $confirm_password) {
+        $hashed_password = password_hash($password, PASSWORD_BCRYPT);
 
-        $sql = "INSERT INTO users (username, email, password, image) VALUES (:username, :email, :password, :image)";
+        // Insert the user data into the database
+        $sql = "INSERT INTO users (username, email, password, self_introduction) VALUES (:username, :email, :password, :self_introduction)";
         $stmt = $conn->prepare($sql);
+        if ($stmt->execute([
+            ':username' => $username,
+            ':email' => $email,
+            ':password' => $hashed_password,
+            ':self_introduction' => $self_introduction
+        ])) {
+            // Generate a static profile page
+            $profileHtml = "<html><head><title>$username's Profile</title></head><body>";
+            $profileHtml .= "<h1>$username's Profile</h1>";
+            $profileHtml .= "<p>Introduction: " . htmlspecialchars($self_introduction) . "</p>";
+            $profileHtml .= "</body></html>";
+            file_put_contents("profiles/$username.html", $profileHtml);
 
-        if ($stmt->execute([':username' => $username, ':email' => $email, ':password' => $password_hash, ':image' => $image_path])) {
-            $message = "Successfully registered!";
-            header("Location: login.php");
+            $message = "Registration successful! <a href='login.php'>Login here</a>.";
         } else {
-            $message = "Registration failed. Username or email may already exist.";
+            $message = "Error during registration.";
         }
+    } else {
+        $message = "Passwords do not match.";
     }
 }
 ?>
@@ -46,11 +43,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <html>
 <head>
     <title>Register</title>
+    <script src="https://cdn.tiny.cloud/1/o7yheknty8a77o0mfdruq6jh8ih9dl6wwk0jnnk08h5ik45k/tinymce/5/tinymce.min.js" referrerpolicy="origin"></script>
+    <script>
+      tinymce.init({
+        selector: '#self_introduction',
+        menubar: false,
+        plugins: 'link',
+        toolbar: 'undo redo | bold italic underline | link'
+      });
+    </script>
 </head>
 <body>
     <h1>Register</h1>
     <p><?php echo $message; ?></p>
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST">
         <label for="username">Username:</label>
         <input type="text" name="username" required><br>
 
@@ -63,11 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         <label for="confirm_password">Confirm Password:</label>
         <input type="password" name="confirm_password" required><br>
 
-        <label for="image">Profile Image:</label>
-        <input type="file" name="image"><br>
+        <label for="self_introduction">Self Introduction:</label>
+        <textarea id="self_introduction" name="self_introduction"></textarea><br>
 
         <button type="submit">Register</button>
     </form>
-    <p>Already registered? <a href="login.php">Login here</a>.</p>
 </body>
 </html>
