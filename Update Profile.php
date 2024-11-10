@@ -70,6 +70,22 @@ $sql = "SELECT username, email, image, self_introduction FROM users WHERE id = :
 $stmt = $conn->prepare($sql);
 $stmt->execute([':id' => $_SESSION['user_id']]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+
+$stmt = $conn->query("SELECT * FROM users WHERE id != :id");
+$similarUsers = [];
+while ($otherUser = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    similar_text($user['self_introduction'], $otherUser['self_introduction'], $percent);
+    if ($percent > 50) { // Adjust threshold as needed
+        $similarUsers[] = ['user' => $otherUser['username'], 'score' => $percent];
+    }
+}
+
+// Display Recommended Users
+foreach ($similarUsers as $similar) {
+    echo "Recommended: {$similar['user']} ({$similar['score']}% similarity)";
+}
+
 ?>
 
 <!DOCTYPE html>
